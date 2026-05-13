@@ -157,6 +157,8 @@
                 <ContextMenu>
                     <MenuItem Header="Editar lote"  Click="MenuEditarLote_Click"/>
                     <MenuItem Header="Excluir lote" Click="MenuExcluirLote_Click"/>
+                    <Separator/>
+                    <MenuItem Header="Gerar etiqueta de validade..." Click="MenuEtiquetaValidade_Click"/>
                 </ContextMenu>
             </DataGrid.ContextMenu>
         </DataGrid>
