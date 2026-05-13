@@ -1,0 +1,49 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>None</DebugType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>WinExe</OutputType>
+    <Platforms>x86;x64</Platforms>
+    <PublishSingleFile>true</PublishSingleFile>
+    <RootNamespace>CEB</RootNamespace>
+    <SelfContained>true</SelfContained>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- Impede que os arquivos gerados em Build\ sejam incluídos duas vezes pelo glob padrão do SDK -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);Build\**</DefaultItemExcludes>
+    <!-- Impede que o SDK acrescente subpastas de TFM e RID ao OutputPath -->
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <!-- Saída: Build\{Configuração}\{Plataforma}\ | Publicação: Build\Publish\{Configuração}\{Plataforma}\ -->
+  <PropertyGroup Condition="'$(Platform)'=='x86'">
+    <PlatformTarget>x86</PlatformTarget>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <OutputPath>Build\$(Configuration)\x86\</OutputPath>
+    <IntermediateOutputPath>Build\$(Configuration)\x86\Object\</IntermediateOutputPath>
+    <PublishDir>Build\Publish\$(Configuration)\x86\</PublishDir>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Platform)'=='x64' Or '$(Platform)'=='Any CPU' Or '$(Platform)'==''">
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <OutputPath>Build\$(Configuration)\x64\</OutputPath>
+    <IntermediateOutputPath>Build\$(Configuration)\x64\Object\</IntermediateOutputPath>
+    <PublishDir>Build\Publish\$(Configuration)\x64\</PublishDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+  </ItemGroup>
+
+  <!-- App.xaml está em Source\ e não na raiz, então o SDK não o detecta automaticamente como ApplicationDefinition -->
+  <ItemGroup>
+    <ApplicationDefinition Include="Source\App.xaml" SubType="Designer" />
+    <Page Remove="Source\App.xaml" />
+  </ItemGroup>
+
+</Project>
