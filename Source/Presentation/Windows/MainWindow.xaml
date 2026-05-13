@@ -250,6 +250,62 @@
                 </Grid>
             </TabItem>
 
+
+            <!-- ══════════════════════════ EXPORTAÇÃO ══════════════════════ -->
+            <TabItem Header="Exportação">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Dados a exportar -->
+                    <GroupBox Grid.Row="0" Header="Dados a exportar" Padding="8" Margin="0,0,0,8">
+                        <WrapPanel>
+                            <CheckBox x:Name="ChkExportEstoque"   Content="Estoque"          IsChecked="True" Margin="0,0,24,0"/>
+                            <CheckBox x:Name="ChkExportProdutos"  Content="Produtos"          IsChecked="True" Margin="0,0,24,0"/>
+                            <CheckBox x:Name="ChkExportEnderecos" Content="Endereços"         IsChecked="True" Margin="0,0,24,0"/>
+                            <CheckBox x:Name="ChkExportLotes"     Content="Lotes / Validade"  IsChecked="True"/>
+                        </WrapPanel>
+                    </GroupBox>
+
+                    <!-- Formato -->
+                    <GroupBox Grid.Row="1" Header="Formato" Padding="8" Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="RbCsv"  Content="CSV  (um arquivo por tabela)" IsChecked="True" Margin="0,0,32,0"/>
+                            <RadioButton x:Name="RbXlsx" Content="XLSX (uma aba por tabela)"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- Pasta de destino + botão exportar -->
+                    <GroupBox Grid.Row="2" Header="Destino" Padding="8" Margin="0,0,0,8">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right"
+                                    Content="Exportar"
+                                    Click="BtnExportar_Click"
+                                    Background="#1976D2" Foreground="White"
+                                    Width="90" Margin="8,0,0,0"/>
+                            <Button DockPanel.Dock="Right"
+                                    Content="Procurar…"
+                                    Click="BtnExportProcurar_Click"
+                                    Width="90" Margin="8,0,0,0"/>
+                            <TextBox x:Name="TxtExportPasta" IsReadOnly="True"
+                                     VerticalContentAlignment="Center"/>
+                        </DockPanel>
+                    </GroupBox>
+
+                    <!-- Resultado / status -->
+                    <TextBlock x:Name="TxtExportStatus"
+                               Grid.Row="3"
+                               VerticalAlignment="Top"
+                               Margin="4,4,0,0"
+                               TextWrapping="Wrap"
+                               FontSize="13"/>
+                </Grid>
+            </TabItem>
+
         </TabControl>
     </DockPanel>
 </Window>
