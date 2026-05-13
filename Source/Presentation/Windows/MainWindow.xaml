@@ -1,0 +1,256 @@
+﻿<Window x:Class="CEB.Presentation.Windows.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Controle de Estoque" Height="640" Width="1050"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin"  Value="4,0"/>
+            <Setter Property="MinWidth" Value="80"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Margin"  Value="0,0,8,0"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- Header -->
+        <Border DockPanel.Dock="Top" Background="#1976D2" Padding="16,10">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="📅 Controle de Validade"
+                        Background="#00897B" Foreground="White" FontWeight="SemiBold"
+                        Padding="12,4" Margin="0" Click="BtnAbrirValidade_Click"/>
+                <TextBlock Text="📦 Controle de Estoque com Endereçamento"
+                           Foreground="White" FontSize="18" FontWeight="Bold"
+                           VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Footer -->
+        <Border DockPanel.Dock="Bottom" Background="#EEEEEE" BorderBrush="#BDBDBD" BorderThickness="0,1,0,0" Padding="8,4">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Sobre o aplicativo"
+                        Click="BtnSobre_Click" MinWidth="140"/>
+                <TextBlock VerticalAlignment="Center" Foreground="#757575" FontSize="11"
+                           Text="Controle de Estoque com Endereçamento — SQLite"/>
+            </DockPanel>
+        </Border>
+
+        <TabControl Margin="8">
+
+            <!-- ══════════════════════════ ESTOQUE ══════════════════════════ -->
+            <TabItem Header="Estoque">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Filtro -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Label Content="Filtrar:"/>
+                        <TextBox x:Name="TxtFiltroEstoque" Width="220"
+                                 TextChanged="TxtFiltroEstoque_TextChanged"/>
+                        <Button Content="Atualizar" Click="BtnAtualizarEstoque_Click"/>
+                    </StackPanel>
+
+                    <!-- Movimentação -->
+                    <GroupBox Grid.Row="1" Header="Movimentação" Padding="8" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="180"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="180"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Label Grid.Column="0" Content="Produto:"/>
+                            <ComboBox x:Name="CboProdutoEstoque" Grid.Column="1"
+                                      DisplayMemberPath="Nome" SelectedValuePath="Id"
+                                      Margin="0,0,8,0" VerticalContentAlignment="Center"/>
+
+                            <Label Grid.Column="2" Content="Endereço:"/>
+                            <ComboBox x:Name="CboEnderecoEstoque" Grid.Column="3"
+                                      DisplayMemberPath="Codigo" SelectedValuePath="Id"
+                                      Margin="0,0,8,0" VerticalContentAlignment="Center"/>
+
+                            <Label Grid.Column="4" Content="Qtd:"/>
+                            <TextBox x:Name="TxtQtdEstoque" Grid.Column="5" Width="90"/>
+
+                            <Button Grid.Column="6" Content="+ Entrada"  Background="#43A047" Foreground="White"
+                                    Click="BtnEntrada_Click"/>
+                            <Button Grid.Column="7" Content="− Saída"    Background="#E53935" Foreground="White"
+                                    Click="BtnSaida_Click"/>
+                        </Grid>
+                    </GroupBox>
+
+                    <!-- Grid de estoque -->
+                    <DataGrid x:Name="DgEstoque" Grid.Row="2"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              SelectionMode="Single" AlternatingRowBackground="#F5F5F5"
+                              CanUserAddRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Código Produto" Binding="{Binding ProdutoCodigo}" Width="120"/>
+                            <DataGridTextColumn Header="Nome Produto"   Binding="{Binding ProdutoNome}"   Width="*"/>
+                            <DataGridTextColumn Header="Endereço"       Binding="{Binding EnderecoCode}"  Width="120"/>
+                            <DataGridTextColumn Header="Quantidade"     Binding="{Binding Quantidade}"    Width="100"/>
+                            <DataGridTextColumn Header="Unidade"        Binding="{Binding ProdutoUnidade}" Width="80"/>
+                        </DataGrid.Columns>
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Ajustar quantidade..." Click="MenuAjustarQtd_Click"/>
+                                <MenuItem Header="Excluir registro"      Click="MenuExcluirItemEstoque_Click"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ══════════════════════════ PRODUTOS ════════════════════════ -->
+            <TabItem Header="Produtos">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Barra superior -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Label Content="Filtrar:"/>
+                        <TextBox x:Name="TxtFiltroProduto" Width="220"
+                                 TextChanged="TxtFiltroProduto_TextChanged"/>
+                        <Button Content="Novo Produto" Click="BtnNovoProduto_Click" Background="#1976D2" Foreground="White"/>
+                        <Button Content="Editar Produto" Click="BtnEditarProduto_Click" Background="#F57C00" Foreground="White"/>
+                    </StackPanel>
+
+                    <!-- Formulário -->
+                    <GroupBox Grid.Row="1" Header="Dados do Produto" Padding="8" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="220"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Label Grid.Row="0" Grid.Column="0" Content="Código:"/>
+                            <TextBox x:Name="TxtProdCodigo" Grid.Row="0" Grid.Column="1"/>
+
+                            <Label Grid.Row="0" Grid.Column="2" Content="Nome:"/>
+                            <TextBox x:Name="TxtProdNome" Grid.Row="0" Grid.Column="3"/>
+
+                            <Label Grid.Row="0" Grid.Column="4" Content="Unidade:"/>
+                            <TextBox x:Name="TxtProdUnidade" Grid.Row="0" Grid.Column="5"/>
+
+                            <Label Grid.Row="0" Grid.Column="6" Content="Categoria:"/>
+                            <TextBox x:Name="TxtProdCategoria" Grid.Row="0" Grid.Column="7"/>
+
+                            <Label Grid.Row="1" Grid.Column="0" Content="Descrição:"
+                                   Margin="0,6,0,0"/>
+                            <TextBox x:Name="TxtProdDescricao" Grid.Row="1" Grid.Column="1"
+                                     Grid.ColumnSpan="7" Margin="0,6,0,0"/>
+
+                            <Label Grid.Row="2" Grid.Column="0" Content="Patrimônio:"
+                                   Margin="0,6,0,0"/>
+                            <TextBox x:Name="TxtProdPatrimonio" Grid.Row="2" Grid.Column="1"
+                                     Grid.ColumnSpan="3" Margin="0,6,0,0"
+                                     ToolTip="Número de patrimônio (opcional)"/>
+                        </Grid>
+                    </GroupBox>
+
+                    <!-- Botões + DataGrid -->
+                    <DockPanel Grid.Row="2">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,4">
+                            <Button Content="Salvar"  Click="BtnSalvarProduto_Click"  Background="#43A047" Foreground="White"/>
+                            <Button Content="Excluir" Click="BtnExcluirProduto_Click" Background="#E53935" Foreground="White"/>
+                            <Button Content="Limpar"  Click="BtnLimparProduto_Click"/>
+                        </StackPanel>
+                        <DataGrid x:Name="DgProdutos"
+                                  AutoGenerateColumns="False" IsReadOnly="True"
+                                  SelectionMode="Single" AlternatingRowBackground="#F5F5F5"
+                                  CanUserAddRows="False"
+                                  SelectionChanged="DgProdutos_SelectionChanged"
+                                  MouseDoubleClick="DgProdutos_DoubleClick">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Código"     Binding="{Binding Codigo}"     Width="110"/>
+                                <DataGridTextColumn Header="Nome"       Binding="{Binding Nome}"       Width="*"/>
+                                <DataGridTextColumn Header="Unidade"    Binding="{Binding Unidade}"    Width="80"/>
+                                <DataGridTextColumn Header="Categoria"  Binding="{Binding Categoria}"  Width="120"/>
+                                <DataGridTextColumn Header="Patrimônio" Binding="{Binding Patrimonio}" Width="120"/>
+                                <DataGridTextColumn Header="Descrição"  Binding="{Binding Descricao}"  Width="180"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ══════════════════════════ ENDEREÇOS ═══════════════════════ -->
+            <TabItem Header="Endereços">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Barra superior -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Label Content="Filtrar:"/>
+                        <TextBox x:Name="TxtFiltroEndereco" Width="220"
+                                 TextChanged="TxtFiltroEndereco_TextChanged"/>
+                        <Button Content="Novo Endereço" Click="BtnNovoEndereco_Click" Background="#1976D2" Foreground="White"/>
+                        <Button Content="Editar Endereço" Click="BtnEditarEndereco_Click" Background="#F57C00" Foreground="White"/>
+                    </StackPanel>
+
+                    <!-- Botões + DataGrid -->
+                    <DockPanel Grid.Row="1">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,4">
+                            <Button Content="Excluir Selecionado" Click="BtnExcluirEndereco_Click" Background="#E53935" Foreground="White"/>
+                        </StackPanel>
+                        <DataGrid x:Name="DgEnderecos"
+                                  AutoGenerateColumns="False" IsReadOnly="True"
+                                  SelectionMode="Single" AlternatingRowBackground="#F5F5F5"
+                                  CanUserAddRows="False"
+                                  SelectionChanged="DgEnderecos_SelectionChanged"
+                                  MouseDoubleClick="DgEnderecos_DoubleClick">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Código"  Binding="{Binding Codigo}" Width="*"/>
+                                <DataGridTextColumn Header="Setor"   Binding="{Binding Setor}"  Width="100"/>
+                                <DataGridTextColumn Header="Rua"     Binding="{Binding Rua}"    Width="100"/>
+                                <DataGridTextColumn Header="Coluna"  Binding="{Binding Coluna}" Width="100"/>
+                                <DataGridTextColumn Header="Nível"   Binding="{Binding Nivel}"  Width="100"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+
+        </TabControl>
+    </DockPanel>
+</Window>
+
