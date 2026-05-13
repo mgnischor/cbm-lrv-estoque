@@ -1,0 +1,9 @@
+<Project>
+  <!--
+    Redireciona os artefatos de restore do NuGet (project.assets.json, *.nuget.g.*) de obj\ para Build\obj\.
+    Deve ser definido aqui, antes da importação de Microsoft.Common.props, conforme exigido pelo MSBuild.
+  -->
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>Build\obj\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>
