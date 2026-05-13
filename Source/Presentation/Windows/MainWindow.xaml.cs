@@ -412,4 +412,113 @@ public partial class MainWindow : Window
         var dlg = new ValidadeWindow(_db) { Owner = this };
         dlg.ShowDialog();
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // EXPORTAÇÃO
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>Abre o seletor de pasta de destino para exportação.</summary>
+    private void BtnExportProcurar_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "Selecione a pasta de destino para exportação",
+        };
+        if (dlg.ShowDialog() == true)
+            TxtExportPasta.Text = dlg.FolderName;
+    }
+
+    /// <summary>
+    /// Valida as opções e exporta os dados selecionados para CSV ou XLSX
+    /// na pasta indicada, com timestamp no nome dos arquivos.
+    /// </summary>
+    private void BtnExportar_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(TxtExportPasta.Text))
+        {
+            MessageBox.Show(
+                "Selecione a pasta de destino.",
+                "Exportação",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning
+            );
+            return;
+        }
+
+        if (
+            ChkExportEstoque.IsChecked != true
+            && ChkExportProdutos.IsChecked != true
+            && ChkExportEnderecos.IsChecked != true
+            && ChkExportLotes.IsChecked != true
+        )
+        {
+            MessageBox.Show(
+                "Selecione ao menos um tipo de dado.",
+                "Exportação",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning
+            );
+            return;
+        }
+
+        TxtExportStatus.Foreground = System.Windows.Media.Brushes.Gray;
+        TxtExportStatus.Text = "Exportando…";
+
+        try
+        {
+            var svc = new CEB.Infrastructure.Export.ExportService();
+            var pasta = TxtExportPasta.Text;
+            var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var arquivos = new System.Collections.Generic.List<string>();
+
+            if (RbXlsx.IsChecked == true)
+            {
+                var path = System.IO.Path.Combine(pasta, $"estoque_{ts}.xlsx");
+                svc.ExportarXlsx(
+                    path,
+                    ChkExportEstoque.IsChecked == true ? _db.ListarEstoque() : null,
+                    ChkExportProdutos.IsChecked == true ? _db.ListarProdutos() : null,
+                    ChkExportEnderecos.IsChecked == true ? _db.ListarEnderecos() : null,
+                    ChkExportLotes.IsChecked == true ? _db.ListarLotes() : null
+                );
+                arquivos.Add(path);
+            }
+            else
+            {
+                if (ChkExportEstoque.IsChecked == true)
+                {
+                    var f = System.IO.Path.Combine(pasta, $"estoque_{ts}.csv");
+                    svc.ExportarCsvEstoque(f, _db.ListarEstoque());
+                    arquivos.Add(f);
+                }
+                if (ChkExportProdutos.IsChecked == true)
+                {
+                    var f = System.IO.Path.Combine(pasta, $"produtos_{ts}.csv");
+                    svc.ExportarCsvProdutos(f, _db.ListarProdutos());
+                    arquivos.Add(f);
+                }
+                if (ChkExportEnderecos.IsChecked == true)
+                {
+                    var f = System.IO.Path.Combine(pasta, $"enderecos_{ts}.csv");
+                    svc.ExportarCsvEnderecos(f, _db.ListarEnderecos());
+                    arquivos.Add(f);
+                }
+                if (ChkExportLotes.IsChecked == true)
+                {
+                    var f = System.IO.Path.Combine(pasta, $"lotes_{ts}.csv");
+                    svc.ExportarCsvLotes(f, _db.ListarLotes());
+                    arquivos.Add(f);
+                }
+            }
+
+            TxtExportStatus.Foreground = System.Windows.Media.Brushes.Green;
+            TxtExportStatus.Text =
+                $"✔ {arquivos.Count} arquivo(s) exportado(s):\n{string.Join("\n", arquivos)}";
+        }
+        catch (Exception ex)
+        {
+            TxtExportStatus.Foreground = System.Windows.Media.Brushes.Red;
+            TxtExportStatus.Text = $"Erro na exportação: {ex.Message}";
+        }
+    }
 }
