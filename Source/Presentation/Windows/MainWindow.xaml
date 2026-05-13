@@ -116,6 +116,9 @@
                             <ContextMenu>
                                 <MenuItem Header="Ajustar quantidade..." Click="MenuAjustarQtd_Click"/>
                                 <MenuItem Header="Excluir registro"      Click="MenuExcluirItemEstoque_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Gerar etiqueta do produto..."  Click="MenuEtiquetaProdutoDoEstoque_Click"/>
+                                <MenuItem Header="Gerar etiqueta do endereço..." Click="MenuEtiquetaEnderecoDoEstoque_Click"/>
                             </ContextMenu>
                         </DataGrid.ContextMenu>
                     </DataGrid>
@@ -197,6 +200,11 @@
                                   CanUserAddRows="False"
                                   SelectionChanged="DgProdutos_SelectionChanged"
                                   MouseDoubleClick="DgProdutos_DoubleClick">
+                            <DataGrid.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Gerar etiqueta..." Click="MenuEtiquetaProduto_Click"/>
+                                </ContextMenu>
+                            </DataGrid.ContextMenu>
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Código"     Binding="{Binding Codigo}"     Width="110"/>
                                 <DataGridTextColumn Header="Nome"       Binding="{Binding Nome}"       Width="*"/>
@@ -238,6 +246,11 @@
                                   CanUserAddRows="False"
                                   SelectionChanged="DgEnderecos_SelectionChanged"
                                   MouseDoubleClick="DgEnderecos_DoubleClick">
+                            <DataGrid.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Gerar etiqueta..." Click="MenuEtiquetaEndereco_Click"/>
+                                </ContextMenu>
+                            </DataGrid.ContextMenu>
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Código"  Binding="{Binding Codigo}" Width="*"/>
                                 <DataGridTextColumn Header="Setor"   Binding="{Binding Setor}"  Width="100"/>
