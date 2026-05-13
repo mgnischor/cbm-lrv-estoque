@@ -521,4 +521,118 @@ public partial class MainWindow : Window
             TxtExportStatus.Text = $"Erro na exportação: {ex.Message}";
         }
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ETIQUETAS (geração de imagens PNG)
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>Gera o PNG da etiqueta de um produto após escolha do destino.</summary>
+    private void MenuEtiquetaProduto_Click(object sender, RoutedEventArgs e)
+    {
+        if (DgProdutos.SelectedItem is not Produto p)
+        {
+            MessageBox.Show("Selecione um produto.", "Aviso");
+            return;
+        }
+        GerarEtiqueta(
+            sugestao: $"etiqueta_produto_{Sanitizar(p.Codigo)}.png",
+            executar: path =>
+                new CEB.Infrastructure.Labels.LabelImageService().GerarEtiquetaProduto(p, path)
+        );
+    }
+
+    /// <summary>Gera o PNG da etiqueta de um endereço após escolha do destino.</summary>
+    private void MenuEtiquetaEndereco_Click(object sender, RoutedEventArgs e)
+    {
+        if (DgEnderecos.SelectedItem is not Endereco en)
+        {
+            MessageBox.Show("Selecione um endereço.", "Aviso");
+            return;
+        }
+        GerarEtiqueta(
+            sugestao: $"etiqueta_endereco_{Sanitizar(en.Codigo)}.png",
+            executar: path =>
+                new CEB.Infrastructure.Labels.LabelImageService().GerarEtiquetaEndereco(en, path)
+        );
+    }
+
+    /// <summary>Atalho: gera etiqueta do produto a partir do item de estoque selecionado.</summary>
+    private void MenuEtiquetaProdutoDoEstoque_Click(object sender, RoutedEventArgs e)
+    {
+        if (DgEstoque.SelectedItem is not ItemEstoque it)
+            return;
+        var prod = _db.ListarProdutos().FirstOrDefault(x => x.Id == it.ProdutoId);
+        if (prod is null)
+        {
+            MessageBox.Show("Produto não encontrado.", "Aviso");
+            return;
+        }
+        GerarEtiqueta(
+            sugestao: $"etiqueta_produto_{Sanitizar(prod.Codigo)}.png",
+            executar: path =>
+                new CEB.Infrastructure.Labels.LabelImageService().GerarEtiquetaProduto(prod, path)
+        );
+    }
+
+    /// <summary>Atalho: gera etiqueta do endereço a partir do item de estoque selecionado.</summary>
+    private void MenuEtiquetaEnderecoDoEstoque_Click(object sender, RoutedEventArgs e)
+    {
+        if (DgEstoque.SelectedItem is not ItemEstoque it)
+            return;
+        var end = _db.ListarEnderecos().FirstOrDefault(x => x.Id == it.EnderecoId);
+        if (end is null)
+        {
+            MessageBox.Show("Endereço não encontrado.", "Aviso");
+            return;
+        }
+        GerarEtiqueta(
+            sugestao: $"etiqueta_endereco_{Sanitizar(end.Codigo)}.png",
+            executar: path =>
+                new CEB.Infrastructure.Labels.LabelImageService().GerarEtiquetaEndereco(end, path)
+        );
+    }
+
+    /// <summary>
+    /// Exibe o diálogo de salvamento de PNG e executa a ação <paramref name="executar"/>
+    /// para gerar a etiqueta, tratando eventuais exceções com mensagem ao usuário.
+    /// </summary>
+    private void GerarEtiqueta(string sugestao, Action<string> executar)
+    {
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Salvar etiqueta como…",
+            FileName = sugestao,
+            DefaultExt = ".png",
+            Filter = "Imagem PNG (*.png)|*.png",
+        };
+        if (dlg.ShowDialog() != true)
+            return;
+        try
+        {
+            executar(dlg.FileName);
+            MessageBox.Show(
+                $"Etiqueta gerada com sucesso:\n{dlg.FileName}",
+                "Etiqueta",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information
+            );
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Falha ao gerar etiqueta:\n{ex.Message}",
+                "Erro",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            );
+        }
+    }
+
+    /// <summary>Remove caracteres inválidos de nome de arquivo.</summary>
+    private static string Sanitizar(string s)
+    {
+        var invalid = System.IO.Path.GetInvalidFileNameChars();
+        var arr = s.Select(c => invalid.Contains(c) ? '_' : c).ToArray();
+        return new string(arr).Trim();
+    }
 }
