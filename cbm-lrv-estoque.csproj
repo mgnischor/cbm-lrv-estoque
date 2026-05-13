@@ -17,6 +17,21 @@
     <!-- Impede que o SDK acrescente subpastas de TFM e RID ao OutputPath -->
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <!-- Ícone da aplicação -->
+    <ApplicationIcon>Resource\Icon\icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- Informações de recurso incorporadas no executável (VERSIONINFO / AssemblyInfo) -->
+  <PropertyGroup>
+    <AssemblyTitle>CBM LRV Estoque</AssemblyTitle>
+    <AssemblyDescription>Sistema de controle de estoque para o Corpo de Bombeiros Militar de Lucas do Rio Verde.</AssemblyDescription>
+    <Company>Corpo de Bombeiros Militar de Lucas do Rio Verde</Company>
+    <Product>CBM LRV Estoque</Product>
+    <AssemblyCopyright>Copyright © 2026 Miguel Nischor</AssemblyCopyright>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.0</Version>
+    <NeutralLanguage>pt-BR</NeutralLanguage>
   </PropertyGroup>
 
   <!-- Saída: Build\{Configuração}\{Plataforma}\ | Publicação: Build\Publish\{Configuração}\{Plataforma}\ -->
