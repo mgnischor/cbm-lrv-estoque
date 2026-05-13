@@ -197,4 +197,53 @@ public partial class ValidadeWindow : Window
             CarregarLotes();
         }
     }
+
+    /// <summary>
+    /// Gera a imagem PNG da etiqueta de validade para o lote selecionado.
+    /// </summary>
+    private void MenuEtiquetaValidade_Click(object sender, RoutedEventArgs e)
+    {
+        if (DgLotes.SelectedItem is not LoteProduto l)
+        {
+            MessageBox.Show("Selecione um lote.", "Aviso");
+            return;
+        }
+
+        var invalid = System.IO.Path.GetInvalidFileNameChars();
+        string Limpar(string s) =>
+            new string(s.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
+
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Salvar etiqueta de validade como…",
+            FileName = $"etiqueta_validade_{Limpar(l.ProdutoCodigo)}_{Limpar(l.Lote)}.png",
+            DefaultExt = ".png",
+            Filter = "Imagem PNG (*.png)|*.png",
+        };
+        if (dlg.ShowDialog() != true)
+            return;
+
+        try
+        {
+            new CEB.Infrastructure.Labels.LabelImageService().GerarEtiquetaValidade(
+                l,
+                dlg.FileName
+            );
+            MessageBox.Show(
+                $"Etiqueta gerada com sucesso:\n{dlg.FileName}",
+                "Etiqueta",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information
+            );
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Falha ao gerar etiqueta:\n{ex.Message}",
+                "Erro",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            );
+        }
+    }
 }
