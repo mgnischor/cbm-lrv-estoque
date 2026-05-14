@@ -1,3 +1,4 @@
+using System.Globalization;
 using CEB.Domain.Aggregates;
 using CEB.Domain.Entities;
 using Microsoft.Data.Sqlite;
@@ -45,21 +46,25 @@ public class DatabaseService
         cmd.CommandText =
             @"
             CREATE TABLE IF NOT EXISTS Produtos (
-                Id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                Codigo     TEXT NOT NULL UNIQUE,
-                Nome       TEXT NOT NULL,
-                Descricao  TEXT,
-                Unidade    TEXT NOT NULL,
-                Categoria  TEXT,
-                Patrimonio TEXT
+                Id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                Codigo          TEXT NOT NULL UNIQUE,
+                Nome            TEXT NOT NULL,
+                Descricao       TEXT,
+                Unidade         TEXT NOT NULL,
+                Categoria       TEXT,
+                Patrimonio      TEXT,
+                DataCadastro    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime')),
+                DataAtualizacao TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
             );
 
             CREATE TABLE IF NOT EXISTS Enderecos (
-                Id     INTEGER PRIMARY KEY AUTOINCREMENT,
-                Setor  TEXT NOT NULL,
-                Rua    TEXT NOT NULL,
-                Coluna TEXT NOT NULL,
-                Nivel  TEXT NOT NULL,
+                Id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                Setor           TEXT NOT NULL,
+                Rua             TEXT NOT NULL,
+                Coluna          TEXT NOT NULL,
+                Nivel           TEXT NOT NULL,
+                DataCadastro    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime')),
+                DataAtualizacao TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime')),
                 UNIQUE (Setor, Rua, Coluna, Nivel)
             );
 
@@ -78,7 +83,25 @@ public class DatabaseService
                 DataFabricacao  TEXT    NOT NULL,
                 DataValidade    TEXT    NOT NULL,
                 Quantidade      REAL    NOT NULL DEFAULT 0,
-                Observacao      TEXT
+                Observacao      TEXT,
+                DataCadastro    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime')),
+                DataAtualizacao TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
+            );
+
+            CREATE TABLE IF NOT EXISTS Epis (
+                Id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                Codigo            TEXT NOT NULL UNIQUE,
+                Nome              TEXT NOT NULL,
+                Descricao         TEXT,
+                NumeroCa          TEXT,
+                ValidadeCa        TEXT NOT NULL,
+                Quantidade        REAL NOT NULL DEFAULT 0,
+                EstadoConservacao TEXT NOT NULL DEFAULT 'Bom',
+                Responsavel       TEXT,
+                Setor             TEXT,
+                Observacao        TEXT,
+                DataCadastro      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime')),
+                DataAtualizacao   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
             );
 
             CREATE INDEX IF NOT EXISTS IX_Produtos_Nome      ON Produtos(Nome);
@@ -87,18 +110,33 @@ public class DatabaseService
             CREATE INDEX IF NOT EXISTS IX_Lotes_DataValidade ON Lotes(DataValidade);
             CREATE INDEX IF NOT EXISTS IX_Estoque_ProdutoId  ON Estoque(ProdutoId);
             CREATE INDEX IF NOT EXISTS IX_Estoque_EnderecoId ON Estoque(EnderecoId);
+            CREATE INDEX IF NOT EXISTS IX_Epis_Nome          ON Epis(Nome);
+            CREATE INDEX IF NOT EXISTS IX_Epis_ValidadeCa    ON Epis(ValidadeCa);
         ";
         cmd.ExecuteNonQuery();
 
-        // Migração: adiciona coluna Patrimonio em bancos de dados existentes
-        try
+        // Migrações: adiciona colunas em bancos de dados existentes
+        var migrations = new[]
         {
-            var alt = conn.CreateCommand();
-            alt.CommandText = "ALTER TABLE Produtos ADD COLUMN Patrimonio TEXT";
-            alt.ExecuteNonQuery();
-        }
-        catch
-        { /* coluna já existe */
+            "ALTER TABLE Produtos   ADD COLUMN Patrimonio      TEXT",
+            "ALTER TABLE Produtos   ADD COLUMN DataCadastro    TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE Produtos   ADD COLUMN DataAtualizacao TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE Enderecos  ADD COLUMN DataCadastro    TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE Enderecos  ADD COLUMN DataAtualizacao TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE Lotes      ADD COLUMN DataCadastro    TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE Lotes      ADD COLUMN DataAtualizacao TEXT NOT NULL DEFAULT ''",
+        };
+        foreach (var sql in migrations)
+        {
+            try
+            {
+                var alt = conn.CreateCommand();
+                alt.CommandText = sql;
+                alt.ExecuteNonQuery();
+            }
+            catch
+            { /* coluna já existe */
+            }
         }
     }
 
@@ -132,8 +170,8 @@ public class DatabaseService
         using var conn = AbrirConexao();
         var cmd = conn.CreateCommand();
         cmd.CommandText = string.IsNullOrWhiteSpace(filtro)
-            ? "SELECT Id, Codigo, Nome, Descricao, Unidade, Categoria, Patrimonio FROM Produtos ORDER BY Nome"
-            : "SELECT Id, Codigo, Nome, Descricao, Unidade, Categoria, Patrimonio FROM Produtos WHERE Codigo LIKE $f OR Nome LIKE $f OR Categoria LIKE $f OR Patrimonio LIKE $f ORDER BY Nome";
+            ? "SELECT Id, Codigo, Nome, Descricao, Unidade, Categoria, Patrimonio, DataCadastro, DataAtualizacao FROM Produtos ORDER BY Nome"
+            : "SELECT Id, Codigo, Nome, Descricao, Unidade, Categoria, Patrimonio, DataCadastro, DataAtualizacao FROM Produtos WHERE Codigo LIKE $f OR Nome LIKE $f OR Categoria LIKE $f OR Patrimonio LIKE $f ORDER BY Nome";
         if (!string.IsNullOrWhiteSpace(filtro))
             cmd.Parameters.AddWithValue("$f", $"%{filtro}%");
 
@@ -154,7 +192,7 @@ public class DatabaseService
         using var conn = AbrirConexao();
         var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "SELECT Id, Codigo, Nome, Descricao, Unidade, Categoria, Patrimonio FROM Produtos WHERE Id=$id";
+            "SELECT Id, Codigo, Nome, Descricao, Unidade, Categoria, Patrimonio, DataCadastro, DataAtualizacao FROM Produtos WHERE Id=$id";
         cmd.Parameters.AddWithValue("$id", id);
         using var reader = cmd.ExecuteReader();
         return reader.Read() ? MapProduto(reader) : null;
@@ -168,17 +206,19 @@ public class DatabaseService
     {
         using var conn = AbrirConexao();
         var cmd = conn.CreateCommand();
+        var agora = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
         if (p.Id == 0)
         {
             cmd.CommandText =
-                @"INSERT INTO Produtos (Codigo, Nome, Descricao, Unidade, Categoria, Patrimonio)
-                                VALUES ($c,$n,$d,$u,$cat,$pat)";
+                @"INSERT INTO Produtos (Codigo, Nome, Descricao, Unidade, Categoria, Patrimonio, DataCadastro, DataAtualizacao)
+                                VALUES ($c,$n,$d,$u,$cat,$pat,$dc,$da)";
+            cmd.Parameters.AddWithValue("$dc", agora);
         }
         else
         {
             cmd.CommandText =
                 @"UPDATE Produtos SET Codigo=$c, Nome=$n, Descricao=$d,
-                                Unidade=$u, Categoria=$cat, Patrimonio=$pat WHERE Id=$id";
+                                Unidade=$u, Categoria=$cat, Patrimonio=$pat, DataAtualizacao=$da WHERE Id=$id";
             cmd.Parameters.AddWithValue("$id", p.Id);
         }
         cmd.Parameters.AddWithValue("$c", p.Codigo);
@@ -187,6 +227,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("$u", p.Unidade);
         cmd.Parameters.AddWithValue("$cat", p.Categoria);
         cmd.Parameters.AddWithValue("$pat", p.Patrimonio);
+        cmd.Parameters.AddWithValue("$da", agora);
         cmd.ExecuteNonQuery();
     }
 
@@ -221,8 +262,8 @@ public class DatabaseService
         using var conn = AbrirConexao();
         var cmd = conn.CreateCommand();
         cmd.CommandText = string.IsNullOrWhiteSpace(filtro)
-            ? "SELECT Id, Setor, Rua, Coluna, Nivel FROM Enderecos ORDER BY Setor, Rua, Coluna, Nivel"
-            : @"SELECT Id, Setor, Rua, Coluna, Nivel FROM Enderecos
+            ? "SELECT Id, Setor, Rua, Coluna, Nivel, DataCadastro, DataAtualizacao FROM Enderecos ORDER BY Setor, Rua, Coluna, Nivel"
+            : @"SELECT Id, Setor, Rua, Coluna, Nivel, DataCadastro, DataAtualizacao FROM Enderecos
                 WHERE (Setor || '-' || Rua || '-' || Coluna || '-' || Nivel) LIKE $f
                 ORDER BY Setor, Rua, Coluna, Nivel";
         if (!string.IsNullOrWhiteSpace(filtro))
@@ -243,21 +284,24 @@ public class DatabaseService
     {
         using var conn = AbrirConexao();
         var cmd = conn.CreateCommand();
+        var agora = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
         if (e.Id == 0)
         {
             cmd.CommandText =
-                "INSERT INTO Enderecos (Setor, Rua, Coluna, Nivel) VALUES ($s,$r,$c,$n)";
+                "INSERT INTO Enderecos (Setor, Rua, Coluna, Nivel, DataCadastro, DataAtualizacao) VALUES ($s,$r,$c,$n,$dc,$da)";
+            cmd.Parameters.AddWithValue("$dc", agora);
         }
         else
         {
             cmd.CommandText =
-                "UPDATE Enderecos SET Setor=$s, Rua=$r, Coluna=$c, Nivel=$n WHERE Id=$id";
+                "UPDATE Enderecos SET Setor=$s, Rua=$r, Coluna=$c, Nivel=$n, DataAtualizacao=$da WHERE Id=$id";
             cmd.Parameters.AddWithValue("$id", e.Id);
         }
         cmd.Parameters.AddWithValue("$s", e.Setor);
         cmd.Parameters.AddWithValue("$r", e.Rua);
         cmd.Parameters.AddWithValue("$c", e.Coluna);
         cmd.Parameters.AddWithValue("$n", e.Nivel);
+        cmd.Parameters.AddWithValue("$da", agora);
         cmd.ExecuteNonQuery();
     }
 
@@ -393,6 +437,12 @@ public class DatabaseService
             Unidade = r.GetString(4),
             Categoria = r.IsDBNull(5) ? "" : r.GetString(5),
             Patrimonio = r.IsDBNull(6) ? "" : r.GetString(6),
+            DataCadastro = DateTime.TryParse(r.IsDBNull(7) ? "" : r.GetString(7), out var dcP)
+                ? dcP
+                : DateTime.MinValue,
+            DataAtualizacao = DateTime.TryParse(r.IsDBNull(8) ? "" : r.GetString(8), out var daP)
+                ? daP
+                : DateTime.MinValue,
         };
 
     /// <summary>Mapeia uma linha do <see cref="SqliteDataReader"/> para um <see cref="Endereco"/>.</summary>
@@ -404,6 +454,12 @@ public class DatabaseService
             Rua = r.GetString(2),
             Coluna = r.GetString(3),
             Nivel = r.GetString(4),
+            DataCadastro = DateTime.TryParse(r.IsDBNull(5) ? "" : r.GetString(5), out var dcE)
+                ? dcE
+                : DateTime.MinValue,
+            DataAtualizacao = DateTime.TryParse(r.IsDBNull(6) ? "" : r.GetString(6), out var daE)
+                ? daE
+                : DateTime.MinValue,
         };
 
     // ── Lotes / Validade ─────────────────────────────────────────────────
@@ -420,7 +476,7 @@ public class DatabaseService
         cmd.CommandText =
             @"
             SELECT l.Id, l.ProdutoId, l.Lote, l.DataFabricacao, l.DataValidade,
-                   l.Quantidade, l.Observacao,
+                   l.Quantidade, l.Observacao, l.DataCadastro, l.DataAtualizacao,
                    p.Codigo, p.Nome, p.Unidade
             FROM Lotes l
             JOIN Produtos p ON p.Id = l.ProdutoId
@@ -451,17 +507,19 @@ public class DatabaseService
     {
         using var conn = AbrirConexao();
         var cmd = conn.CreateCommand();
+        var agora = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
         if (l.Id == 0)
         {
             cmd.CommandText =
-                @"INSERT INTO Lotes (ProdutoId, Lote, DataFabricacao, DataValidade, Quantidade, Observacao)
-                                VALUES ($p,$lo,$df,$dv,$q,$obs)";
+                @"INSERT INTO Lotes (ProdutoId, Lote, DataFabricacao, DataValidade, Quantidade, Observacao, DataCadastro, DataAtualizacao)
+                                VALUES ($p,$lo,$df,$dv,$q,$obs,$dc,$da)";
+            cmd.Parameters.AddWithValue("$dc", agora);
         }
         else
         {
             cmd.CommandText =
                 @"UPDATE Lotes SET ProdutoId=$p, Lote=$lo, DataFabricacao=$df,
-                                DataValidade=$dv, Quantidade=$q, Observacao=$obs WHERE Id=$id";
+                                DataValidade=$dv, Quantidade=$q, Observacao=$obs, DataAtualizacao=$da WHERE Id=$id";
             cmd.Parameters.AddWithValue("$id", l.Id);
         }
         cmd.Parameters.AddWithValue("$p", l.ProdutoId);
@@ -470,6 +528,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("$dv", l.DataValidade.ToString("yyyy-MM-dd"));
         cmd.Parameters.AddWithValue("$q", l.Quantidade);
         cmd.Parameters.AddWithValue("$obs", l.Observacao);
+        cmd.Parameters.AddWithValue("$da", agora);
         cmd.ExecuteNonQuery();
     }
 
@@ -497,8 +556,117 @@ public class DatabaseService
             DataValidade = DateTime.Parse(r.GetString(4)),
             Quantidade = r.GetDecimal(5),
             Observacao = r.IsDBNull(6) ? "" : r.GetString(6),
-            ProdutoCodigo = r.GetString(7),
-            ProdutoNome = r.GetString(8),
-            ProdutoUnidade = r.GetString(9),
+            DataCadastro = DateTime.TryParse(r.IsDBNull(7) ? "" : r.GetString(7), out var dcL)
+                ? dcL
+                : DateTime.MinValue,
+            DataAtualizacao = DateTime.TryParse(r.IsDBNull(8) ? "" : r.GetString(8), out var daL)
+                ? daL
+                : DateTime.MinValue,
+            ProdutoCodigo = r.GetString(9),
+            ProdutoNome = r.GetString(10),
+            ProdutoUnidade = r.GetString(11),
+        };
+
+    // ── EPIs ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Retorna a lista de EPIs, opcionalmente filtrada por código, nome, CA ou responsável.
+    /// </summary>
+    public List<Epi> ListarEpis(string filtro = "")
+    {
+        using var conn = AbrirConexao();
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = string.IsNullOrWhiteSpace(filtro)
+            ? @"SELECT Id, Codigo, Nome, Descricao, NumeroCa, ValidadeCa, Quantidade,
+                       EstadoConservacao, Responsavel, Setor, Observacao, DataCadastro, DataAtualizacao
+                FROM Epis ORDER BY Nome"
+            : @"SELECT Id, Codigo, Nome, Descricao, NumeroCa, ValidadeCa, Quantidade,
+                       EstadoConservacao, Responsavel, Setor, Observacao, DataCadastro, DataAtualizacao
+                FROM Epis
+                WHERE Codigo LIKE $f OR Nome LIKE $f OR NumeroCa LIKE $f OR Responsavel LIKE $f OR Setor LIKE $f
+                ORDER BY Nome";
+        if (!string.IsNullOrWhiteSpace(filtro))
+            cmd.Parameters.AddWithValue("$f", $"%{filtro}%");
+
+        var lista = new List<Epi>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+            lista.Add(MapEpi(reader));
+        return lista;
+    }
+
+    /// <summary>
+    /// Insere um novo EPI ou atualiza um existente no banco de dados.
+    /// </summary>
+    public void SalvarEpi(Epi epi)
+    {
+        using var conn = AbrirConexao();
+        var cmd = conn.CreateCommand();
+        var agora = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        if (epi.Id == 0)
+        {
+            cmd.CommandText =
+                @"INSERT INTO Epis (Codigo, Nome, Descricao, NumeroCa, ValidadeCa, Quantidade,
+                                    EstadoConservacao, Responsavel, Setor, Observacao, DataCadastro, DataAtualizacao)
+                             VALUES ($co,$n,$d,$ca,$vca,$q,$ec,$resp,$set,$obs,$dc,$da)";
+            cmd.Parameters.AddWithValue("$dc", agora);
+        }
+        else
+        {
+            cmd.CommandText =
+                @"UPDATE Epis SET Codigo=$co, Nome=$n, Descricao=$d, NumeroCa=$ca, ValidadeCa=$vca,
+                                  Quantidade=$q, EstadoConservacao=$ec, Responsavel=$resp,
+                                  Setor=$set, Observacao=$obs, DataAtualizacao=$da
+                  WHERE Id=$id";
+            cmd.Parameters.AddWithValue("$id", epi.Id);
+        }
+        cmd.Parameters.AddWithValue("$co", epi.Codigo);
+        cmd.Parameters.AddWithValue("$n", epi.Nome);
+        cmd.Parameters.AddWithValue("$d", epi.Descricao);
+        cmd.Parameters.AddWithValue("$ca", epi.NumeroCa);
+        cmd.Parameters.AddWithValue("$vca", epi.ValidadeCa.ToString("yyyy-MM-dd"));
+        cmd.Parameters.AddWithValue("$q", epi.Quantidade);
+        cmd.Parameters.AddWithValue("$ec", epi.EstadoConservacao.ToString());
+        cmd.Parameters.AddWithValue("$resp", epi.Responsavel);
+        cmd.Parameters.AddWithValue("$set", epi.Setor);
+        cmd.Parameters.AddWithValue("$obs", epi.Observacao);
+        cmd.Parameters.AddWithValue("$da", agora);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Remove um EPI pelo seu identificador.
+    /// </summary>
+    public void ExcluirEpi(int id)
+    {
+        using var conn = AbrirConexao();
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM Epis WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Mapeia uma linha do <see cref="SqliteDataReader"/> para um <see cref="Epi"/>.</summary>
+    private static Epi MapEpi(SqliteDataReader r) =>
+        new()
+        {
+            Id = r.GetInt32(0),
+            Codigo = r.GetString(1),
+            Nome = r.GetString(2),
+            Descricao = r.IsDBNull(3) ? "" : r.GetString(3),
+            NumeroCa = r.IsDBNull(4) ? "" : r.GetString(4),
+            ValidadeCa = DateTime.Parse(r.GetString(5)),
+            Quantidade = r.GetDecimal(6),
+            EstadoConservacao = Enum.TryParse<EstadoConservacao>(
+                r.IsDBNull(7) ? "" : r.GetString(7),
+                out var ec
+            )
+                ? ec
+                : EstadoConservacao.Bom,
+            Responsavel = r.IsDBNull(8) ? "" : r.GetString(8),
+            Setor = r.IsDBNull(9) ? "" : r.GetString(9),
+            Observacao = r.IsDBNull(10) ? "" : r.GetString(10),
+            DataCadastro = r.IsDBNull(11) ? DateTime.MinValue : DateTime.Parse(r.GetString(11)),
+            DataAtualizacao = r.IsDBNull(12) ? DateTime.MinValue : DateTime.Parse(r.GetString(12)),
         };
 }
