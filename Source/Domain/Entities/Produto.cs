@@ -25,4 +25,10 @@ public class Produto
 
     /// <summary>Número de patrimônio associado ao produto, quando aplicável.</summary>
     public string Patrimonio { get; set; } = string.Empty;
+
+    /// <summary>Data de cadastro do produto no sistema.</summary>
+    public DateTime DataCadastro { get; set; } = DateTime.Now;
+
+    /// <summary>Data da última atualização do registro do produto.</summary>
+    public DateTime DataAtualizacao { get; set; } = DateTime.Now;
 }
