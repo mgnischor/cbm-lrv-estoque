@@ -212,6 +212,8 @@
                                 <DataGridTextColumn Header="Categoria"  Binding="{Binding Categoria}"  Width="120"/>
                                 <DataGridTextColumn Header="Patrimônio" Binding="{Binding Patrimonio}" Width="120"/>
                                 <DataGridTextColumn Header="Descrição"  Binding="{Binding Descricao}"  Width="180"/>
+                                <DataGridTextColumn Header="Cadastrado em"   Binding="{Binding DataCadastro,   StringFormat=dd/MM/yyyy}" Width="110"/>
+                                <DataGridTextColumn Header="Atualizado em"   Binding="{Binding DataAtualizacao, StringFormat=dd/MM/yyyy}" Width="110"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </DockPanel>
@@ -257,12 +259,79 @@
                                 <DataGridTextColumn Header="Rua"     Binding="{Binding Rua}"    Width="100"/>
                                 <DataGridTextColumn Header="Coluna"  Binding="{Binding Coluna}" Width="100"/>
                                 <DataGridTextColumn Header="Nível"   Binding="{Binding Nivel}"  Width="100"/>
+                                <DataGridTextColumn Header="Cadastrado em"  Binding="{Binding DataCadastro,   StringFormat=dd/MM/yyyy}" Width="110"/>
+                                <DataGridTextColumn Header="Atualizado em"  Binding="{Binding DataAtualizacao, StringFormat=dd/MM/yyyy}" Width="110"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </DockPanel>
                 </Grid>
             </TabItem>
 
+
+            <!-- ══════════════════════════ EPIs ════════════════════════════ -->
+            <TabItem Header="EPIs">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Barra superior -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Label Content="Filtrar:"/>
+                        <TextBox x:Name="TxtFiltroEpi" Width="220"
+                                 TextChanged="TxtFiltroEpi_TextChanged"/>
+                        <Button Content="Novo EPI" Click="BtnNovoEpi_Click"
+                                Background="#E65100" Foreground="White"/>
+                        <Button Content="Editar EPI" Click="BtnEditarEpi_Click"
+                                Background="#F57C00" Foreground="White"/>
+                        <Button Content="Excluir EPI" Click="BtnExcluirEpi_Click"
+                                Background="#E53935" Foreground="White"/>
+                        <Button Content="↻ Atualizar" Click="BtnAtualizarEpi_Click"/>
+                    </StackPanel>
+
+                    <!-- DataGrid de EPIs -->
+                    <DataGrid x:Name="DgEpis" Grid.Row="1"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              SelectionMode="Single" AlternatingRowBackground="#FFF3E0"
+                              CanUserAddRows="False"
+                              SelectionChanged="DgEpis_SelectionChanged"
+                              MouseDoubleClick="DgEpis_DoubleClick">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusCa}" Value="Vencido">
+                                        <Setter Property="Background" Value="#FFCDD2"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding StatusCa}" Value="AVencer">
+                                        <Setter Property="Background" Value="#FFF9C4"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding EstadoConservacao}" Value="Danificado">
+                                        <Setter Property="Background" Value="#FFCCBC"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding EstadoConservacao}" Value="Descartado">
+                                        <Setter Property="Background" Value="#E0E0E0"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Código"         Binding="{Binding Codigo}"                                         Width="100"/>
+                            <DataGridTextColumn Header="Nome"           Binding="{Binding Nome}"                                           Width="*"/>
+                            <DataGridTextColumn Header="Nº CA"          Binding="{Binding NumeroCa}"                                       Width="90"/>
+                            <DataGridTextColumn Header="Validade CA"    Binding="{Binding ValidadeCa,     StringFormat=dd/MM/yyyy}"         Width="95"/>
+                            <DataGridTextColumn Header="Qtd"            Binding="{Binding Quantidade}"                                     Width="60"/>
+                            <DataGridTextColumn Header="Conservação"    Binding="{Binding EstadoConservacao}"                              Width="100"/>
+                            <DataGridTextColumn Header="Responsável"    Binding="{Binding Responsavel}"                                    Width="130"/>
+                            <DataGridTextColumn Header="Setor"          Binding="{Binding Setor}"                                          Width="100"/>
+                            <DataGridTextColumn Header="Descrição"      Binding="{Binding Descricao}"                                      Width="150"/>
+                            <DataGridTextColumn Header="Observação"     Binding="{Binding Observacao}"                                     Width="150"/>
+                            <DataGridTextColumn Header="Cadastrado em"  Binding="{Binding DataCadastro,   StringFormat=dd/MM/yyyy}"         Width="110"/>
+                            <DataGridTextColumn Header="Atualizado em"  Binding="{Binding DataAtualizacao, StringFormat=dd/MM/yyyy}"        Width="110"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
 
             <!-- ══════════════════════════ EXPORTAÇÃO ══════════════════════ -->
             <TabItem Header="Exportação">
