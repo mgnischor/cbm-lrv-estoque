@@ -26,6 +26,12 @@ public class Endereco
     /// </summary>
     public string Codigo => $"{Setor}-{Rua}-{Coluna}-{Nivel}";
 
+    /// <summary>Data de cadastro do endereço no sistema.</summary>
+    public DateTime DataCadastro { get; set; } = DateTime.Now;
+
+    /// <summary>Data da última atualização do registro do endereço.</summary>
+    public DateTime DataAtualizacao { get; set; } = DateTime.Now;
+
     /// <inheritdoc/>
     public override string ToString() => Codigo;
 }
