@@ -26,6 +26,12 @@ public class LoteProduto
     /// <summary>Observações adicionais sobre o lote.</summary>
     public string Observacao { get; set; } = string.Empty;
 
+    /// <summary>Data de cadastro do lote no sistema.</summary>
+    public DateTime DataCadastro { get; set; } = DateTime.Now;
+
+    /// <summary>Data da última atualização do registro do lote.</summary>
+    public DateTime DataAtualizacao { get; set; } = DateTime.Now;
+
     // ── Propriedades de navegação (leitura) ──────────────────────────────
 
     /// <summary>Código do produto (preenchido por consulta).</summary>
