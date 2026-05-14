@@ -38,6 +38,7 @@ public partial class MainWindow : Window
         CarregarEstoque();
         CarregarProdutos();
         CarregarEnderecos();
+        CarregarEpis();
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -388,6 +389,72 @@ public partial class MainWindow : Window
             DgEnderecos.SelectedItem = null;
             CarregarEnderecos();
             CarregarEstoque();
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // EPIs
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>Recarrega o grid de EPIs aplicando o filtro atual.</summary>
+    private void CarregarEpis() => DgEpis.ItemsSource = _db.ListarEpis(TxtFiltroEpi.Text.Trim());
+
+    private void TxtFiltroEpi_TextChanged(
+        object sender,
+        System.Windows.Controls.TextChangedEventArgs e
+    ) => CarregarEpis();
+
+    private void BtnAtualizarEpi_Click(object sender, RoutedEventArgs e) => CarregarEpis();
+
+    private void DgEpis_SelectionChanged(
+        object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e
+    ) { }
+
+    private void DgEpis_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e) =>
+        AbrirEdicaoEpi();
+
+    /// <summary>Abre a janela de novo cadastro de EPI.</summary>
+    private void BtnNovoEpi_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new CEB.Presentation.Views.CadastroEpiWindow(_db) { Owner = this };
+        if (dlg.ShowDialog() == true)
+            CarregarEpis();
+    }
+
+    /// <summary>Abre a janela de edição para o EPI selecionado.</summary>
+    private void BtnEditarEpi_Click(object sender, RoutedEventArgs e) => AbrirEdicaoEpi();
+
+    private void AbrirEdicaoEpi()
+    {
+        if (DgEpis.SelectedItem is not CEB.Domain.Entities.Epi epi)
+        {
+            MessageBox.Show("Selecione um EPI para editar.", "Aviso");
+            return;
+        }
+        var dlg = new CEB.Presentation.Views.CadastroEpiWindow(_db, epi) { Owner = this };
+        if (dlg.ShowDialog() == true)
+            CarregarEpis();
+    }
+
+    /// <summary>Solicita confirmação e exclui o EPI selecionado.</summary>
+    private void BtnExcluirEpi_Click(object sender, RoutedEventArgs e)
+    {
+        if (DgEpis.SelectedItem is not CEB.Domain.Entities.Epi epi)
+        {
+            MessageBox.Show("Selecione um EPI para excluir.", "Aviso");
+            return;
+        }
+        if (
+            MessageBox.Show(
+                $"Excluir o EPI '{epi.Nome}' (CA: {epi.NumeroCa})?",
+                "Confirmar",
+                MessageBoxButton.YesNo
+            ) == MessageBoxResult.Yes
+        )
+        {
+            _db.ExcluirEpi(epi.Id);
+            CarregarEpis();
         }
     }
 
