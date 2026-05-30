@@ -119,6 +119,8 @@
                                 <Separator/>
                                 <MenuItem Header="Gerar etiqueta do produto..."  Click="MenuEtiquetaProdutoDoEstoque_Click"/>
                                 <MenuItem Header="Gerar etiqueta do endereço..." Click="MenuEtiquetaEnderecoDoEstoque_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Ver histórico do produto..." Click="MenuHistoricoProdutoEstoque_Click"/>
                             </ContextMenu>
                         </DataGrid.ContextMenu>
                     </DataGrid>
@@ -203,6 +205,8 @@
                             <DataGrid.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="Gerar etiqueta..." Click="MenuEtiquetaProduto_Click"/>
+                                    <Separator/>
+                                    <MenuItem Header="Ver histórico..." Click="MenuHistoricoProduto_Click"/>
                                 </ContextMenu>
                             </DataGrid.ContextMenu>
                             <DataGrid.Columns>
@@ -329,6 +333,11 @@
                             <DataGridTextColumn Header="Cadastrado em"  Binding="{Binding DataCadastro,   StringFormat=dd/MM/yyyy}"         Width="110"/>
                             <DataGridTextColumn Header="Atualizado em"  Binding="{Binding DataAtualizacao, StringFormat=dd/MM/yyyy}"        Width="110"/>
                         </DataGrid.Columns>
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Ver histórico..." Click="MenuHistoricoEpi_Click"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
                     </DataGrid>
                 </Grid>
             </TabItem>
