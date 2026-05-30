@@ -159,6 +159,8 @@
                     <MenuItem Header="Excluir lote" Click="MenuExcluirLote_Click"/>
                     <Separator/>
                     <MenuItem Header="Gerar etiqueta de validade..." Click="MenuEtiquetaValidade_Click"/>
+                    <Separator/>
+                    <MenuItem Header="Ver histórico do produto..." Click="MenuHistoricoLote_Click"/>
                 </ContextMenu>
             </DataGrid.ContextMenu>
         </DataGrid>
