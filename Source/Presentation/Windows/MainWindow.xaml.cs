@@ -702,4 +702,41 @@ public partial class MainWindow : Window
         var arr = s.Select(c => invalid.Contains(c) ? '_' : c).ToArray();
         return new string(arr).Trim();
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // HISTÓRICO
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>Abre o histórico filtrado pelo produto do item de estoque selecionado.</summary>
+    private void MenuHistoricoProdutoEstoque_Click(object sender, RoutedEventArgs e)
+    {
+        if (DgEstoque.SelectedItem is not ItemEstoque item)
+        {
+            MessageBox.Show("Selecione um item no estoque.", "Aviso");
+            return;
+        }
+        new HistoricoWindow(_db, item.ProdutoNome) { Owner = this }.ShowDialog();
+    }
+
+    /// <summary>Abre o histórico filtrado pelo produto selecionado na aba Produtos.</summary>
+    private void MenuHistoricoProduto_Click(object sender, RoutedEventArgs e)
+    {
+        if (DgProdutos.SelectedItem is not Produto p)
+        {
+            MessageBox.Show("Selecione um produto.", "Aviso");
+            return;
+        }
+        new HistoricoWindow(_db, p.Nome) { Owner = this }.ShowDialog();
+    }
+
+    /// <summary>Abre o histórico filtrado pelo EPI selecionado.</summary>
+    private void MenuHistoricoEpi_Click(object sender, RoutedEventArgs e)
+    {
+        if (DgEpis.SelectedItem is not CEB.Domain.Entities.Epi epi)
+        {
+            MessageBox.Show("Selecione um EPI.", "Aviso");
+            return;
+        }
+        new HistoricoWindow(_db, epi.Nome, "EPI") { Owner = this }.ShowDialog();
+    }
 }
