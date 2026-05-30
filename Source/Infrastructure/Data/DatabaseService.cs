@@ -112,6 +112,21 @@ public class DatabaseService
             CREATE INDEX IF NOT EXISTS IX_Estoque_EnderecoId ON Estoque(EnderecoId);
             CREATE INDEX IF NOT EXISTS IX_Epis_Nome          ON Epis(Nome);
             CREATE INDEX IF NOT EXISTS IX_Epis_ValidadeCa    ON Epis(ValidadeCa);
+
+            CREATE TABLE IF NOT EXISTS Historico (
+                Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                Tipo      TEXT NOT NULL DEFAULT '',
+                Acao      TEXT NOT NULL DEFAULT '',
+                Codigo    TEXT NOT NULL DEFAULT '',
+                Nome      TEXT NOT NULL DEFAULT '',
+                Quantidade REAL,
+                Detalhes  TEXT NOT NULL DEFAULT '',
+                DataHora  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
+            );
+
+            CREATE INDEX IF NOT EXISTS IX_Historico_DataHora ON Historico(DataHora);
+            CREATE INDEX IF NOT EXISTS IX_Historico_Tipo     ON Historico(Tipo);
+            CREATE INDEX IF NOT EXISTS IX_Historico_Nome     ON Historico(Nome);
         ";
         cmd.ExecuteNonQuery();
 
@@ -138,6 +153,24 @@ public class DatabaseService
             { /* coluna já existe */
             }
         }
+
+        // Garante que a tabela Historico exista mesmo em bancos criados antes desta versão
+        var cmdHistorico = conn.CreateCommand();
+        cmdHistorico.CommandText =
+            @"CREATE TABLE IF NOT EXISTS Historico (
+                Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                Tipo      TEXT NOT NULL DEFAULT '',
+                Acao      TEXT NOT NULL DEFAULT '',
+                Codigo    TEXT NOT NULL DEFAULT '',
+                Nome      TEXT NOT NULL DEFAULT '',
+                Quantidade REAL,
+                Detalhes  TEXT NOT NULL DEFAULT '',
+                DataHora  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
+            );
+            CREATE INDEX IF NOT EXISTS IX_Historico_DataHora ON Historico(DataHora);
+            CREATE INDEX IF NOT EXISTS IX_Historico_Tipo     ON Historico(Tipo);
+            CREATE INDEX IF NOT EXISTS IX_Historico_Nome     ON Historico(Nome);";
+        cmdHistorico.ExecuteNonQuery();
     }
 
     // ── Auxiliar de conexão ───────────────────────────────────────────────
@@ -207,6 +240,7 @@ public class DatabaseService
         using var conn = AbrirConexao();
         var cmd = conn.CreateCommand();
         var agora = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        var acao = p.Id == 0 ? "Cadastro" : "Atualização";
         if (p.Id == 0)
         {
             cmd.CommandText =
@@ -229,6 +263,15 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("$pat", p.Patrimonio);
         cmd.Parameters.AddWithValue("$da", agora);
         cmd.ExecuteNonQuery();
+        InsertHistorico(
+            conn,
+            "Produto",
+            acao,
+            p.Codigo,
+            p.Nome,
+            null,
+            string.IsNullOrWhiteSpace(p.Categoria) ? "" : $"Categoria: {p.Categoria}"
+        );
     }
 
     /// <summary>
@@ -394,6 +437,17 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("$e", enderecoId);
         cmd.Parameters.AddWithValue("$q", quantidade);
         cmd.ExecuteNonQuery();
+        var (movProdCod, movProdNome) = GetProdutoInfo(conn, produtoId);
+        var movEndCode = GetEnderecoCode(conn, enderecoId);
+        InsertHistorico(
+            conn,
+            "Estoque",
+            quantidade >= 0 ? "Entrada" : "Saída",
+            movProdCod,
+            movProdNome,
+            Math.Abs(quantidade),
+            $"Endereço: {movEndCode}"
+        );
     }
 
     /// <summary>
@@ -404,11 +458,43 @@ public class DatabaseService
     public void AjustarEstoque(int itemId, decimal novaQuantidade)
     {
         using var conn = AbrirConexao();
+
+        // Busca informações do item para registrar no histórico
+        var infoCmd = conn.CreateCommand();
+        infoCmd.CommandText =
+            @"SELECT p.Codigo, p.Nome, en.Setor||'-'||en.Rua||'-'||en.Coluna||'-'||en.Nivel
+              FROM Estoque e
+              JOIN Produtos  p  ON p.Id  = e.ProdutoId
+              JOIN Enderecos en ON en.Id = e.EnderecoId
+              WHERE e.Id=$id";
+        infoCmd.Parameters.AddWithValue("$id", itemId);
+        string ajProdCod = "",
+            ajProdNome = "",
+            ajEndCode = "";
+        using (var r = infoCmd.ExecuteReader())
+        {
+            if (r.Read())
+            {
+                ajProdCod = r.GetString(0);
+                ajProdNome = r.GetString(1);
+                ajEndCode = r.GetString(2);
+            }
+        }
+
         var cmd = conn.CreateCommand();
         cmd.CommandText = "UPDATE Estoque SET Quantidade=$q WHERE Id=$id";
         cmd.Parameters.AddWithValue("$q", novaQuantidade);
         cmd.Parameters.AddWithValue("$id", itemId);
         cmd.ExecuteNonQuery();
+        InsertHistorico(
+            conn,
+            "Estoque",
+            "Ajuste",
+            ajProdCod,
+            ajProdNome,
+            novaQuantidade,
+            $"Endereço: {ajEndCode}"
+        );
     }
 
     /// <summary>
@@ -508,6 +594,7 @@ public class DatabaseService
         using var conn = AbrirConexao();
         var cmd = conn.CreateCommand();
         var agora = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        var acao = l.Id == 0 ? "Cadastro" : "Atualização";
         if (l.Id == 0)
         {
             cmd.CommandText =
@@ -530,6 +617,16 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("$obs", l.Observacao);
         cmd.Parameters.AddWithValue("$da", agora);
         cmd.ExecuteNonQuery();
+        var (loteProdCod, loteProdNome) = GetProdutoInfo(conn, l.ProdutoId);
+        InsertHistorico(
+            conn,
+            "Validade",
+            acao,
+            loteProdCod,
+            loteProdNome,
+            l.Quantidade,
+            $"Lote: {l.Lote}, Validade: {l.DataValidade:dd/MM/yyyy}"
+        );
     }
 
     /// <summary>
@@ -603,6 +700,7 @@ public class DatabaseService
         using var conn = AbrirConexao();
         var cmd = conn.CreateCommand();
         var agora = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        var acao = epi.Id == 0 ? "Cadastro" : "Atualização";
         if (epi.Id == 0)
         {
             cmd.CommandText =
@@ -632,6 +730,15 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("$obs", epi.Observacao);
         cmd.Parameters.AddWithValue("$da", agora);
         cmd.ExecuteNonQuery();
+        InsertHistorico(
+            conn,
+            "EPI",
+            acao,
+            epi.Codigo,
+            epi.Nome,
+            epi.Quantidade,
+            $"CA: {epi.NumeroCa}, Setor: {epi.Setor}"
+        );
     }
 
     /// <summary>
@@ -669,4 +776,112 @@ public class DatabaseService
             DataCadastro = r.IsDBNull(11) ? DateTime.MinValue : DateTime.Parse(r.GetString(11)),
             DataAtualizacao = r.IsDBNull(12) ? DateTime.MinValue : DateTime.Parse(r.GetString(12)),
         };
+
+    // ── Histórico ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Retorna os registros de histórico de operações, com filtros opcionais por texto,
+    /// tipo de operação e intervalo de datas.
+    /// </summary>
+    public List<RegistroHistorico> ListarHistorico(
+        string filtro = "",
+        string tipo = "",
+        DateTime? dataInicio = null,
+        DateTime? dataFim = null
+    )
+    {
+        using var conn = AbrirConexao();
+        var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            "SELECT Id, Tipo, Acao, Codigo, Nome, Quantidade, Detalhes, DataHora FROM Historico WHERE 1=1";
+
+        if (!string.IsNullOrWhiteSpace(filtro))
+        {
+            cmd.CommandText +=
+                " AND (Codigo LIKE $f OR Nome LIKE $f OR Detalhes LIKE $f OR Acao LIKE $f)";
+            cmd.Parameters.AddWithValue("$f", $"%{filtro}%");
+        }
+        if (!string.IsNullOrWhiteSpace(tipo))
+        {
+            cmd.CommandText += " AND Tipo=$tipo";
+            cmd.Parameters.AddWithValue("$tipo", tipo);
+        }
+        if (dataInicio.HasValue)
+        {
+            cmd.CommandText += " AND DataHora >= $di";
+            cmd.Parameters.AddWithValue("$di", dataInicio.Value.ToString("yyyy-MM-dd"));
+        }
+        if (dataFim.HasValue)
+        {
+            cmd.CommandText += " AND DataHora < $df";
+            cmd.Parameters.AddWithValue("$df", dataFim.Value.AddDays(1).ToString("yyyy-MM-dd"));
+        }
+        cmd.CommandText += " ORDER BY DataHora DESC";
+
+        var lista = new List<RegistroHistorico>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            lista.Add(
+                new RegistroHistorico
+                {
+                    Id = reader.GetInt32(0),
+                    Tipo = reader.GetString(1),
+                    Acao = reader.GetString(2),
+                    Codigo = reader.GetString(3),
+                    Nome = reader.GetString(4),
+                    Quantidade = reader.IsDBNull(5) ? null : reader.GetDecimal(5),
+                    Detalhes = reader.GetString(6),
+                    DataHora = DateTime.Parse(reader.GetString(7)),
+                }
+            );
+        }
+        return lista;
+    }
+
+    // ── Auxiliares internos de histórico ──────────────────────────────────
+
+    /// <summary>Busca código e nome de um produto pelo seu Id (conexão já aberta).</summary>
+    private static (string Codigo, string Nome) GetProdutoInfo(SqliteConnection conn, int produtoId)
+    {
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT Codigo, Nome FROM Produtos WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$id", produtoId);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? (r.GetString(0), r.GetString(1)) : ("", "");
+    }
+
+    /// <summary>Retorna o código completo de um endereço pelo seu Id (conexão já aberta).</summary>
+    private static string GetEnderecoCode(SqliteConnection conn, int enderecoId)
+    {
+        var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            "SELECT Setor||'-'||Rua||'-'||Coluna||'-'||Nivel FROM Enderecos WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$id", enderecoId);
+        return cmd.ExecuteScalar()?.ToString() ?? "";
+    }
+
+    /// <summary>Insere um registro na tabela Historico usando a conexão fornecida.</summary>
+    private static void InsertHistorico(
+        SqliteConnection conn,
+        string tipo,
+        string acao,
+        string codigo,
+        string nome,
+        decimal? quantidade,
+        string detalhes
+    )
+    {
+        var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            @"INSERT INTO Historico (Tipo, Acao, Codigo, Nome, Quantidade, Detalhes)
+              VALUES ($t,$a,$c,$n,$q,$d)";
+        cmd.Parameters.AddWithValue("$t", tipo);
+        cmd.Parameters.AddWithValue("$a", acao);
+        cmd.Parameters.AddWithValue("$c", codigo);
+        cmd.Parameters.AddWithValue("$n", nome);
+        cmd.Parameters.AddWithValue("$q", (object?)quantidade ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$d", detalhes);
+        cmd.ExecuteNonQuery();
+    }
 }
