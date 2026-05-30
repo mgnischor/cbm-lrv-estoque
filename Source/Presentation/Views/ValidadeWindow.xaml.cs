@@ -246,4 +246,15 @@ public partial class ValidadeWindow : Window
             );
         }
     }
+
+    /// <summary>Abre o histórico filtrado pelo produto do lote selecionado.</summary>
+    private void MenuHistoricoLote_Click(object sender, RoutedEventArgs e)
+    {
+        if (DgLotes.SelectedItem is not LoteProduto l)
+        {
+            MessageBox.Show("Selecione um lote.", "Aviso");
+            return;
+        }
+        new HistoricoWindow(_db, l.ProdutoNome) { Owner = this }.ShowDialog();
+    }
 }
