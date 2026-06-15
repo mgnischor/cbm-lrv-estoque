@@ -19,7 +19,12 @@ public class DatabaseService
     /// <param name="dbPath">Caminho completo para o arquivo do banco de dados SQLite.</param>
     public DatabaseService(string dbPath)
     {
-        _connectionString = $"Data Source={dbPath}";
+        _connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = dbPath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Pooling = true,
+        }.ToString();
         InitializeDatabase();
     }
 
@@ -35,11 +40,13 @@ public class DatabaseService
         // e configura PRAGMAs de desempenho para esta sessão
         var cmd = conn.CreateCommand();
         cmd.CommandText =
-            @"PRAGMA journal_mode = WAL;
-              PRAGMA foreign_keys = ON;
+            @"PRAGMA journal_mode  = WAL;
+              PRAGMA foreign_keys  = ON;
               PRAGMA synchronous   = NORMAL;
-              PRAGMA cache_size    = -8000;
-              PRAGMA temp_store    = MEMORY;";
+              PRAGMA cache_size    = -16000;
+              PRAGMA temp_store    = MEMORY;
+              PRAGMA busy_timeout  = 5000;
+              PRAGMA mmap_size     = 134217728;";
         cmd.ExecuteNonQuery();
 
         // Cria as tabelas e índices caso ainda não existam
@@ -127,6 +134,7 @@ public class DatabaseService
             CREATE INDEX IF NOT EXISTS IX_Historico_DataHora ON Historico(DataHora);
             CREATE INDEX IF NOT EXISTS IX_Historico_Tipo     ON Historico(Tipo);
             CREATE INDEX IF NOT EXISTS IX_Historico_Nome     ON Historico(Nome);
+            CREATE INDEX IF NOT EXISTS IX_Historico_Acao     ON Historico(Acao);
         ";
         cmd.ExecuteNonQuery();
 
@@ -169,7 +177,8 @@ public class DatabaseService
             );
             CREATE INDEX IF NOT EXISTS IX_Historico_DataHora ON Historico(DataHora);
             CREATE INDEX IF NOT EXISTS IX_Historico_Tipo     ON Historico(Tipo);
-            CREATE INDEX IF NOT EXISTS IX_Historico_Nome     ON Historico(Nome);";
+            CREATE INDEX IF NOT EXISTS IX_Historico_Nome     ON Historico(Nome);
+            CREATE INDEX IF NOT EXISTS IX_Historico_Acao     ON Historico(Acao);";
         cmdHistorico.ExecuteNonQuery();
     }
 
@@ -184,10 +193,12 @@ public class DatabaseService
         conn.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            @"PRAGMA foreign_keys = ON;
+            @"PRAGMA foreign_keys  = ON;
               PRAGMA synchronous   = NORMAL;
-              PRAGMA cache_size    = -8000;
-              PRAGMA temp_store    = MEMORY;";
+              PRAGMA cache_size    = -16000;
+              PRAGMA temp_store    = MEMORY;
+              PRAGMA busy_timeout  = 5000;
+              PRAGMA mmap_size     = 134217728;";
         cmd.ExecuteNonQuery();
         return conn;
     }
@@ -238,7 +249,9 @@ public class DatabaseService
     public void SalvarProduto(Produto p)
     {
         using var conn = AbrirConexao();
+        using var tr = conn.BeginTransaction();
         var cmd = conn.CreateCommand();
+        cmd.Transaction = tr;
         var agora = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
         var acao = p.Id == 0 ? "Cadastro" : "Atualização";
         if (p.Id == 0)
@@ -265,6 +278,7 @@ public class DatabaseService
         cmd.ExecuteNonQuery();
         InsertHistorico(
             conn,
+            tr,
             "Produto",
             acao,
             p.Codigo,
@@ -272,6 +286,7 @@ public class DatabaseService
             null,
             string.IsNullOrWhiteSpace(p.Categoria) ? "" : $"Categoria: {p.Categoria}"
         );
+        tr.Commit();
     }
 
     /// <summary>
@@ -281,6 +296,7 @@ public class DatabaseService
     public void ExcluirProduto(int id)
     {
         using var conn = AbrirConexao();
+        var (exclCod, exclNome) = GetProdutoInfo(conn, id);
         using var tr = conn.BeginTransaction();
         var cmd = conn.CreateCommand();
         cmd.Transaction = tr;
@@ -291,6 +307,7 @@ public class DatabaseService
         cmd.ExecuteNonQuery();
         cmd.CommandText = "DELETE FROM Produtos WHERE Id=$id";
         cmd.ExecuteNonQuery();
+        InsertHistorico(conn, tr, "Produto", "Exclusão", exclCod, exclNome, null, "");
         tr.Commit();
     }
 
@@ -426,7 +443,9 @@ public class DatabaseService
     public void MovimentarEstoque(int produtoId, int enderecoId, decimal quantidade)
     {
         using var conn = AbrirConexao();
+        using var tr = conn.BeginTransaction();
         var cmd = conn.CreateCommand();
+        cmd.Transaction = tr;
         cmd.CommandText =
             @"
             INSERT INTO Estoque (ProdutoId, EnderecoId, Quantidade)
@@ -437,10 +456,32 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("$e", enderecoId);
         cmd.Parameters.AddWithValue("$q", quantidade);
         cmd.ExecuteNonQuery();
-        var (movProdCod, movProdNome) = GetProdutoInfo(conn, produtoId);
-        var movEndCode = GetEnderecoCode(conn, enderecoId);
+
+        // Busca produto e endereço em uma única consulta
+        var infoCmd = conn.CreateCommand();
+        infoCmd.Transaction = tr;
+        infoCmd.CommandText =
+            @"SELECT p.Codigo, p.Nome, en.Setor||'-'||en.Rua||'-'||en.Coluna||'-'||en.Nivel
+              FROM Produtos p, Enderecos en
+              WHERE p.Id=$p AND en.Id=$e";
+        infoCmd.Parameters.AddWithValue("$p", produtoId);
+        infoCmd.Parameters.AddWithValue("$e", enderecoId);
+        string movProdCod = "",
+            movProdNome = "",
+            movEndCode = "";
+        using (var r = infoCmd.ExecuteReader())
+        {
+            if (r.Read())
+            {
+                movProdCod = r.GetString(0);
+                movProdNome = r.GetString(1);
+                movEndCode = r.GetString(2);
+            }
+        }
+
         InsertHistorico(
             conn,
+            tr,
             "Estoque",
             quantidade >= 0 ? "Entrada" : "Saída",
             movProdCod,
@@ -448,6 +489,7 @@ public class DatabaseService
             Math.Abs(quantidade),
             $"Endereço: {movEndCode}"
         );
+        tr.Commit();
     }
 
     /// <summary>
@@ -458,9 +500,11 @@ public class DatabaseService
     public void AjustarEstoque(int itemId, decimal novaQuantidade)
     {
         using var conn = AbrirConexao();
+        using var tr = conn.BeginTransaction();
 
         // Busca informações do item para registrar no histórico
         var infoCmd = conn.CreateCommand();
+        infoCmd.Transaction = tr;
         infoCmd.CommandText =
             @"SELECT p.Codigo, p.Nome, en.Setor||'-'||en.Rua||'-'||en.Coluna||'-'||en.Nivel
               FROM Estoque e
@@ -482,12 +526,14 @@ public class DatabaseService
         }
 
         var cmd = conn.CreateCommand();
+        cmd.Transaction = tr;
         cmd.CommandText = "UPDATE Estoque SET Quantidade=$q WHERE Id=$id";
         cmd.Parameters.AddWithValue("$q", novaQuantidade);
         cmd.Parameters.AddWithValue("$id", itemId);
         cmd.ExecuteNonQuery();
         InsertHistorico(
             conn,
+            tr,
             "Estoque",
             "Ajuste",
             ajProdCod,
@@ -495,6 +541,7 @@ public class DatabaseService
             novaQuantidade,
             $"Endereço: {ajEndCode}"
         );
+        tr.Commit();
     }
 
     /// <summary>
@@ -504,10 +551,47 @@ public class DatabaseService
     public void ExcluirItemEstoque(int id)
     {
         using var conn = AbrirConexao();
+
+        var infoCmd = conn.CreateCommand();
+        infoCmd.CommandText =
+            @"SELECT p.Codigo, p.Nome, e.Quantidade, en.Setor||'-'||en.Rua||'-'||en.Coluna||'-'||en.Nivel
+              FROM Estoque e
+              JOIN Produtos  p  ON p.Id  = e.ProdutoId
+              JOIN Enderecos en ON en.Id = e.EnderecoId
+              WHERE e.Id=$id";
+        infoCmd.Parameters.AddWithValue("$id", id);
+        string ieCod = "",
+            ieNome = "",
+            ieEnd = "";
+        decimal? ieQtd = null;
+        using (var r = infoCmd.ExecuteReader())
+        {
+            if (r.Read())
+            {
+                ieCod = r.GetString(0);
+                ieNome = r.GetString(1);
+                ieQtd = r.GetDecimal(2);
+                ieEnd = r.GetString(3);
+            }
+        }
+
+        using var tr = conn.BeginTransaction();
         var cmd = conn.CreateCommand();
+        cmd.Transaction = tr;
         cmd.CommandText = "DELETE FROM Estoque WHERE Id=$id";
         cmd.Parameters.AddWithValue("$id", id);
         cmd.ExecuteNonQuery();
+        InsertHistorico(
+            conn,
+            tr,
+            "Estoque",
+            "Exclusão",
+            ieCod,
+            ieNome,
+            ieQtd,
+            $"Endereço: {ieEnd}"
+        );
+        tr.Commit();
     }
 
     // ── Auxiliares de mapeamento ──────────────────────────────────────────
@@ -592,7 +676,10 @@ public class DatabaseService
     public void SalvarLote(LoteProduto l)
     {
         using var conn = AbrirConexao();
+        var (loteProdCod, loteProdNome) = GetProdutoInfo(conn, l.ProdutoId);
+        using var tr = conn.BeginTransaction();
         var cmd = conn.CreateCommand();
+        cmd.Transaction = tr;
         var agora = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
         var acao = l.Id == 0 ? "Cadastro" : "Atualização";
         if (l.Id == 0)
@@ -617,9 +704,9 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("$obs", l.Observacao);
         cmd.Parameters.AddWithValue("$da", agora);
         cmd.ExecuteNonQuery();
-        var (loteProdCod, loteProdNome) = GetProdutoInfo(conn, l.ProdutoId);
         InsertHistorico(
             conn,
+            tr,
             "Validade",
             acao,
             loteProdCod,
@@ -627,6 +714,7 @@ public class DatabaseService
             l.Quantidade,
             $"Lote: {l.Lote}, Validade: {l.DataValidade:dd/MM/yyyy}"
         );
+        tr.Commit();
     }
 
     /// <summary>
@@ -636,10 +724,47 @@ public class DatabaseService
     public void ExcluirLote(int id)
     {
         using var conn = AbrirConexao();
+
+        var infoCmd = conn.CreateCommand();
+        infoCmd.CommandText =
+            @"SELECT p.Codigo, p.Nome, l.Lote, l.DataValidade
+              FROM Lotes l JOIN Produtos p ON p.Id = l.ProdutoId
+              WHERE l.Id=$id";
+        infoCmd.Parameters.AddWithValue("$id", id);
+        string loteCod = "",
+            loteNome = "",
+            loteNum = "";
+        DateTime loteValidade = DateTime.MinValue;
+        using (var r = infoCmd.ExecuteReader())
+        {
+            if (r.Read())
+            {
+                loteCod = r.GetString(0);
+                loteNome = r.GetString(1);
+                loteNum = r.GetString(2);
+                DateTime.TryParse(r.GetString(3), out loteValidade);
+            }
+        }
+
+        using var tr = conn.BeginTransaction();
         var cmd = conn.CreateCommand();
+        cmd.Transaction = tr;
         cmd.CommandText = "DELETE FROM Lotes WHERE Id=$id";
         cmd.Parameters.AddWithValue("$id", id);
         cmd.ExecuteNonQuery();
+        InsertHistorico(
+            conn,
+            tr,
+            "Validade",
+            "Exclusão",
+            loteCod,
+            loteNome,
+            null,
+            loteValidade != DateTime.MinValue
+                ? $"Lote: {loteNum}, Validade: {loteValidade:dd/MM/yyyy}"
+                : $"Lote: {loteNum}"
+        );
+        tr.Commit();
     }
 
     /// <summary>Mapeia uma linha do <see cref="SqliteDataReader"/> para um <see cref="LoteProduto"/>.</summary>
@@ -698,7 +823,9 @@ public class DatabaseService
     public void SalvarEpi(Epi epi)
     {
         using var conn = AbrirConexao();
+        using var tr = conn.BeginTransaction();
         var cmd = conn.CreateCommand();
+        cmd.Transaction = tr;
         var agora = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
         var acao = epi.Id == 0 ? "Cadastro" : "Atualização";
         if (epi.Id == 0)
@@ -732,6 +859,7 @@ public class DatabaseService
         cmd.ExecuteNonQuery();
         InsertHistorico(
             conn,
+            tr,
             "EPI",
             acao,
             epi.Codigo,
@@ -739,6 +867,7 @@ public class DatabaseService
             epi.Quantidade,
             $"CA: {epi.NumeroCa}, Setor: {epi.Setor}"
         );
+        tr.Commit();
     }
 
     /// <summary>
@@ -747,10 +876,29 @@ public class DatabaseService
     public void ExcluirEpi(int id)
     {
         using var conn = AbrirConexao();
+
+        var infoCmd = conn.CreateCommand();
+        infoCmd.CommandText = "SELECT Codigo, Nome FROM Epis WHERE Id=$id";
+        infoCmd.Parameters.AddWithValue("$id", id);
+        string epiCod = "",
+            epiNome = "";
+        using (var r = infoCmd.ExecuteReader())
+        {
+            if (r.Read())
+            {
+                epiCod = r.GetString(0);
+                epiNome = r.GetString(1);
+            }
+        }
+
+        using var tr = conn.BeginTransaction();
         var cmd = conn.CreateCommand();
+        cmd.Transaction = tr;
         cmd.CommandText = "DELETE FROM Epis WHERE Id=$id";
         cmd.Parameters.AddWithValue("$id", id);
         cmd.ExecuteNonQuery();
+        InsertHistorico(conn, tr, "EPI", "Exclusão", epiCod, epiNome, null, "");
+        tr.Commit();
     }
 
     /// <summary>Mapeia uma linha do <see cref="SqliteDataReader"/> para um <see cref="Epi"/>.</summary>
@@ -787,7 +935,8 @@ public class DatabaseService
         string filtro = "",
         string tipo = "",
         DateTime? dataInicio = null,
-        DateTime? dataFim = null
+        DateTime? dataFim = null,
+        int limite = 1000
     )
     {
         using var conn = AbrirConexao();
@@ -816,7 +965,8 @@ public class DatabaseService
             cmd.CommandText += " AND DataHora < $df";
             cmd.Parameters.AddWithValue("$df", dataFim.Value.AddDays(1).ToString("yyyy-MM-dd"));
         }
-        cmd.CommandText += " ORDER BY DataHora DESC";
+        cmd.CommandText += " ORDER BY DataHora DESC LIMIT $limite";
+        cmd.Parameters.AddWithValue("$limite", limite);
 
         var lista = new List<RegistroHistorico>();
         using var reader = cmd.ExecuteReader();
@@ -864,6 +1014,7 @@ public class DatabaseService
     /// <summary>Insere um registro na tabela Historico usando a conexão fornecida.</summary>
     private static void InsertHistorico(
         SqliteConnection conn,
+        SqliteTransaction? tr,
         string tipo,
         string acao,
         string codigo,
@@ -873,6 +1024,7 @@ public class DatabaseService
     )
     {
         var cmd = conn.CreateCommand();
+        cmd.Transaction = tr;
         cmd.CommandText =
             @"INSERT INTO Historico (Tipo, Acao, Codigo, Nome, Quantidade, Detalhes)
               VALUES ($t,$a,$c,$n,$q,$d)";
